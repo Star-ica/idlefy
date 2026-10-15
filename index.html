@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Idlefy — Onchain To-Do</title>
+<style>
+  :root {
+    --bg: #fafaf8; --surface: #ffffff; --surface2: #f4f4f0;
+    --border: #e5e5e0; --accent: #1a1a1a; --accent2: #16a34a;
+    --text: #1a1a1a; --muted: #737373; --danger: #dc2626;
+    --radius: 6px; --font: 'Inter', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111111; --surface: #1c1c1c; --surface2: #252525;
+      --border: #2e2e2e; --accent: #f5f5f5; --text: #f5f5f5; --muted: #737373;
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-padding-top: env(safe-area-inset-top,0px); }
+  body {
+    font-family: var(--font); background: var(--bg); color: var(--text);
+    min-height: 100vh;
+    padding-top: env(safe-area-inset-top,0); padding-bottom: env(safe-area-inset-bottom,0);
+  }
+  header {
+    padding: 16px 28px; display: flex; align-items: center; gap: 14px;
+    border-bottom: 1px solid var(--border); position: sticky;
+    top: env(safe-area-inset-top,0); background: var(--bg); z-index: 10;
+  }
+  .logo { font-size: 17px; font-weight: 700; letter-spacing: -.4px; }
+  .logo em { font-style: normal; color: var(--accent2); }
+  .chain-badge {
+    margin-left: 8px; background: var(--surface2); border: 1px solid var(--border);
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-family: var(--mono); color: var(--muted);
+  }
+  nav { margin-left: auto; display: flex; gap: 4px; }
+  .tab-btn {
+    background: none; border: 1px solid transparent; padding: 7px 14px;
+    border-radius: var(--radius); cursor: pointer; font-size: 13px; color: var(--muted);
+    font-family: var(--font); transition: all .15s;
+  }
+  .tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  main { max-width: 660px; margin: 0 auto; padding: 36px 24px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .wallet-bar {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px 14px; display: flex; align-items: center; gap: 10px; margin-bottom: 24px;
+    font-size: 13px;
+  }
+  .wallet-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); }
+  .wallet-addr { font-family: var(--mono); color: var(--muted); font-size: 12px; }
+  .wallet-btn {
+    margin-left: auto; background: none; border: 1px solid var(--border);
+    padding: 5px 12px; border-radius: var(--radius); cursor: pointer; font-size: 12px;
+    color: var(--text); font-family: var(--font);
+  }
+
+  .add-form {
+    display: flex; gap: 8px; margin-bottom: 28px;
+  }
+  .add-input {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 11px 14px; color: var(--text);
+    font-family: var(--font); font-size: 14px; outline: none; transition: border-color .15s;
+  }
+  .add-input:focus { border-color: var(--accent); }
+  .add-btn {
+    background: var(--accent); color: var(--bg); border: none; padding: 11px 20px;
+    border-radius: var(--radius); cursor: pointer; font-weight: 600; font-size: 14px;
+    font-family: var(--font); white-space: nowrap;
+  }
+  .add-btn:hover { opacity: .85; }
+
+  .filter-row { display: flex; gap: 6px; margin-bottom: 16px; }
+  .filter-btn {
+    background: none; border: 1px solid var(--border); padding: 5px 12px;
+    border-radius: 20px; cursor: pointer; font-size: 12px; color: var(--muted);
+    font-family: var(--font); transition: all .15s;
+  }
+  .filter-btn.active { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+
+  .todo-item {
+    display: flex; align-items: flex-start; gap: 12px; padding: 14px 0;
+    border-bottom: 1px solid var(--border); transition: opacity .2s;
+  }
+  .todo-item.done { opacity: .5; }
+  .check-circle {
+    width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+    cursor: pointer; flex-shrink: 0; margin-top: 2px; display: flex;
+    align-items: center; justify-content: center; transition: all .15s;
+  }
+  .check-circle.checked { background: var(--accent2); border-color: var(--accent2); }
+  .check-circle.checked::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; }
+  .todo-text {
+    flex: 1; font-size: 14px; padding-top: 1px;
+    transition: text-decoration .15s;
+  }
+  .todo-item.done .todo-text { text-decoration: line-through; color: var(--muted); }
+  .todo-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+  .todo-del {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 16px; padding: 0 4px; margin-top: 1px; line-height: 1;
+  }
+  .todo-del:hover { color: var(--danger); }
+
+  .empty-state { text-align: center; padding: 48px 0; color: var(--muted); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  .stats-row { display: flex; gap: 16px; margin-bottom: 20px; font-size: 13px; color: var(--muted); }
+  .stats-row strong { color: var(--text); }
+
+  .solidity-block {
+    background: #0f0f0f; border: 1px solid #2a2a2a; border-radius: var(--radius);
+    padding: 20px; overflow-x: auto; font-family: var(--mono); font-size: 12px;
+    line-height: 1.75; color: #d4d4d4;
+  }
+  .kw { color: #569cd6; } .type { color: #4ec9b0; } .fn { color: #dcdcaa; }
+  .str { color: #ce9178; } .cm { color: #6a9955; font-style: italic; }
+  .copy-btn {
+    float: right; background: #2a2a2a; border: none; color: #d4d4d4;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;
+    font-family: var(--mono);
+  }
+  .copy-btn:hover { background: var(--accent2); color: #000; }
+
+  #toast {
+    position: fixed; bottom: 24px; right: 24px; background: var(--surface);
+    border: 1px solid var(--accent2); border-radius: var(--radius);
+    padding: 12px 16px; font-size: 13px; opacity: 0; pointer-events: none;
+    transition: opacity .2s; z-index: 100; color: var(--text);
+  }
+  #toast.show { opacity: 1; }
+
+  h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+  .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-key { color: var(--muted); }
+  .info-val { font-family: var(--mono); font-size: 12px; }
+  .info-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-top: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Chain<em>List</em></div>
+  <span class="chain-badge">Celo</span>
+  <nav>
+    <button class="tab-btn active" onclick="showTab('todos')">My Lists</button>
+    <button class="tab-btn" onclick="showTab('contract')">Contract</button>
+  </nav>
+</header>
+
+<main>
+  <!-- TODOS -->
+  <section class="section active" id="todos">
+    <div class="wallet-bar">
+      <div class="wallet-dot"></div>
+      <span style="font-size:13px;">Connected</span>
+      <span class="wallet-addr" id="wallet-display">0x1234...abcd</span>
+      <button class="wallet-btn" onclick="switchWallet()">Switch</button>
+    </div>
+
+    <div class="add-form">
+      <input class="add-input" id="new-task" placeholder="Add a new task..." onkeydown="if(event.key==='Enter')addTask()" />
+      <button class="add-btn" onclick="addTask()">Add task</button>
+    </div>
+
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+      <button class="filter-btn" onclick="setFilter('active',this)">Active</button>
+      <button class="filter-btn" onclick="setFilter('done',this)">Done</button>
+    </div>
+
+    <div class="stats-row" id="stats-row"></div>
+    <div id="todo-list"></div>
+  </section>
+
+  <!-- CONTRACT -->
+  <section class="section" id="contract">
+    <h2>Smart Contract</h2>
+    <p class="subtitle">Each wallet has its own to-do list stored onchain. Tasks are scoped to <code style="font-family:var(--mono);font-size:12px;">msg.sender</code>.</p>
+    <div class="solidity-block">
+      <button class="copy-btn" onclick="copyContract()">Copy</button>
+<pre id="sol-code">// SPDX-License-Identifier: MIT
+<span class="kw">pragma</span> solidity ^0.8.20;
+
+<span class="cm">/// @title OnchainTodoList
+/// @notice Each address owns and manages their own list of tasks</span>
+<span class="kw">contract</span> <span class="type">OnchainTodoList</span> {
+
+    <span class="kw">struct</span> <span class="type">Task</span> {
+        <span class="type">uint256</span> id;
+        <span class="type">string</span>  text;
+        <span class="kw">bool</span>    completed;
+        <span class="type">uint256</span> createdAt;
+        <span class="type">uint256</span> completedAt;
+    }
+
+    <span class="cm">// owner => tasks</span>
+    <span class="kw">mapping</span>(<span class="type">address</span> => <span class="type">Task</span>[]) <span class="kw">private</span> _tasks;
+    <span class="kw">mapping</span>(<span class="type">address</span> => <span class="type">uint256</span>) <span class="kw">private</span> _nextId;
+
+    <span class="kw">event</span> <span class="fn">TaskAdded</span>(<span class="type">address</span> <span class="kw">indexed</span> owner, <span class="type">uint256</span> id, <span class="type">string</span> text);
+    <span class="kw">event</span> <span class="fn">TaskCompleted</span>(<span class="type">address</span> <span class="kw">indexed</span> owner, <span class="type">uint256</span> id);
+    <span class="kw">event</span> <span class="fn">TaskDeleted</span>(<span class="type">address</span> <span class="kw">indexed</span> owner, <span class="type">uint256</span> id);
+
+    <span class="kw">function</span> <span class="fn">addTask</span>(<span class="type">string</span> <span class="kw">calldata</span> text) <span class="kw">external</span> {
+        <span class="kw">require</span>(bytes(text).length > 0, <span class="str">"Empty task"</span>);
+        <span class="type">uint256</span> id = _nextId[msg.sender]++;
+        _tasks[msg.sender].push(<span class="type">Task</span>({
+            id: id,
+            text: text,
+            completed: <span class="kw">false</span>,
+            createdAt: block.timestamp,
+            completedAt: 0
+        }));
+        <span class="kw">emit</span> <span class="fn">TaskAdded</span>(msg.sender, id, text);
+    }
+
+    <span class="kw">function</span> <span class="fn">completeTask</span>(<span class="type">uint256</span> taskIndex) <span class="kw">external</span> {
+        <span class="type">Task</span> <span class="kw">storage</span> t = _tasks[msg.sender][taskIndex];
+        <span class="kw">require</span>(!t.completed, <span class="str">"Already done"</span>);
+        t.completed = <span class="kw">true</span>;
+        t.completedAt = block.timestamp;
+        <span class="kw">emit</span> <span class="fn">TaskCompleted</span>(msg.sender, t.id);
+    }
+
+    <span class="kw">function</span> <span class="fn">deleteTask</span>(<span class="type">uint256</span> taskIndex) <span class="kw">external</span> {
+        <span class="type">Task</span>[] <span class="kw">storage</span> list = _tasks[msg.sender];
+        <span class="kw">require</span>(taskIndex < list.length, <span class="str">"Out of range"</span>);
+        <span class="type">uint256</span> id = list[taskIndex].id;
+        list[taskIndex] = list[list.length - 1];
+        list.pop();
+        <span class="kw">emit</span> <span class="fn">TaskDeleted</span>(msg.sender, id);
+    }
+
+    <span class="kw">function</span> <span class="fn">getTasks</span>()
+        <span class="kw">external</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="type">Task</span>[] <span class="kw">memory</span>)
+    {
+        <span class="kw">return</span> _tasks[msg.sender];
+    }
+
+    <span class="kw">function</span> <span class="fn">getTaskCount</span>() <span class="kw">external</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="type">uint256</span>) {
+        <span class="kw">return</span> _tasks[msg.sender].length;
+    }
+
+    <span class="kw">function</span> <span class="fn">getPendingCount</span>() <span class="kw">external</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="type">uint256</span> count) {
+        <span class="type">Task</span>[] <span class="kw">memory</span> list = _tasks[msg.sender];
+        <span class="kw">for</span> (<span class="type">uint256</span> i; i < list.length; i++) {
+            <span class="kw">if</span> (!list[i].completed) count++;
+        }
+    }
+}</pre>
+    </div>
+    <div class="info-box">
+      <div class="info-row"><span class="info-key">Storage</span><span class="info-val">Per-wallet mapping — no shared state</span></div>
+      <div class="info-row"><span class="info-key">Network</span><span class="info-val">Any EVM / Celo</span></div>
+      <div class="info-row"><span class="info-key">Gas note</span><span class="info-val">addTask and completeTask are write txs</span></div>
+      <div class="info-row"><span class="info-key">Read</span><span class="info-val">getTasks() — free view call</span></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+  let tasks = [], filter = 'all', walletAddr = '0x1234...abcd';
+
+  function showTab(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  function setFilter(f, btn) {
+    filter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  function switchWallet() {
+    const fake = '0x' + Math.random().toString(16).slice(2,8) + '...' + Math.random().toString(16).slice(2,6);
+    walletAddr = fake;
+    document.getElementById('wallet-display').textContent = fake;
+    tasks = [];
+    render();
+    toast('Switched wallet');
+  }
+
+  function addTask() {
+    const inp = document.getElementById('new-task');
+    const text = inp.value.trim();
+    if (!text) return;
+    tasks.push({ id: Date.now(), text, done: false, ts: Date.now() });
+    inp.value = '';
+    render();
+    toast('Task added onchain');
+  }
+
+  function toggleTask(id) {
+    const t = tasks.find(t => t.id === id);
+    if (t) { t.done = !t.done; render(); toast(t.done ? 'Task completed' : 'Task reopened'); }
+  }
+
+  function deleteTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    render();
+    toast('Task deleted');
+  }
+
+  function render() {
+    const filtered = tasks.filter(t => {
+      if (filter === 'active') return !t.done;
+      if (filter === 'done') return t.done;
+      return true;
+    });
+    const done = tasks.filter(t => t.done).length;
+    document.getElementById('stats-row').innerHTML =
+      `<span><strong>${tasks.length}</strong> total</span>
+       <span><strong>${tasks.length - done}</strong> active</span>
+       <span><strong>${done}</strong> done</span>`;
+
+    const list = document.getElementById('todo-list');
+    if (!filtered.length) {
+      const msgs = { all: 'Nothing here yet — add your first task above.',
+        active: 'All tasks are done!', done: 'No completed tasks yet.' };
+      list.innerHTML = `<div class="empty-state"><div class="empty-icon">✓</div><p>${msgs[filter]}</p></div>`;
+      return;
+    }
+    list.innerHTML = filtered.map(t => `
+      <div class="todo-item ${t.done ? 'done' : ''}">
+        <div class="check-circle ${t.done ? 'checked' : ''}" onclick="toggleTask(${t.id})"></div>
+        <div style="flex:1">
+          <div class="todo-text">${t.text}</div>
+          <div class="todo-meta">${new Date(t.ts).toLocaleString()}</div>
+        </div>
+        <button class="todo-del" onclick="deleteTask(${t.id})">×</button>
+      </div>
+    `).join('');
+  }
+
+  function copyContract() {
+    navigator.clipboard.writeText(document.getElementById('sol-code').innerText)
+      .then(() => toast('Contract copied!'));
+  }
+
+  render();
+</script>
+</body>
+</html>
