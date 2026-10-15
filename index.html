@@ -591,12 +591,6 @@ pre.code-block {
   </div>
 </header>
 
-<!-- ── Nav tabs ── -->
-<nav class="nav-tabs">
-  <button class="nav-tab active" data-tab="tasks">My Tasks</button>
-  <button class="nav-tab" data-tab="contract">Contract</button>
-</nav>
-
 <!-- ── My Tasks panel ── -->
 <div class="tab-panel active" id="panel-tasks">
   <div class="panel-inner">
@@ -652,47 +646,11 @@ pre.code-block {
   </div>
 </div>
 
-<!-- ── Contract panel ── -->
-<div class="tab-panel" id="panel-contract">
-  <div class="panel-inner">
-    <p class="section-title">Contract Info</p>
-    <div class="info-grid" style="margin-bottom:20px;">
-      <div class="info-row">
-        <span class="info-label">Network</span>
-        <span class="info-value">Botchain · Chain ID 968</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">RPC</span>
-        <span class="info-value"><a href="https://rpc.bohr.life" target="_blank" rel="noopener">https://rpc.bohr.life</a></span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Explorer</span>
-        <span class="info-value"><a href="https://scan.bohr.life" target="_blank" rel="noopener">https://scan.bohr.life</a></span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Contract</span>
-        <span class="info-value" id="contractAddrDisplay" style="font-size:11px;">0x0000000000000000000000000000000000000000</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Storage</span>
-        <span class="info-value">On-chain (Botchain)</span>
-      </div>
-    </div>
 
-    <p class="section-title">Source</p>
-    <div class="code-block-wrap">
-      <div class="code-header">
-        <span>Idlefy.sol</span>
-        <button class="copy-btn" id="copyCodeBtn">Copy</button>
-      </div>
-      <pre class="code-block" id="solidityCode"></pre>
-    </div>
-  </div>
-</div>
 
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────
-const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+const CONTRACT_ADDRESS = "0x740dd57aA20b122A6122bC9a95a8b34277F3eE2F";
 const CHAIN_ID         = 968;
 const CHAIN_ID_HEX     = "0x" + CHAIN_ID.toString(16);
 const RPC_URL          = "https://rpc.bohr.life";
