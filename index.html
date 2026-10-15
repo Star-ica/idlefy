@@ -1,366 +1,1441 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Idlefy — Onchain To-Do</title>
+<title>Idlefy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+
 <style>
-  :root {
-    --bg: #fafaf8; --surface: #ffffff; --surface2: #f4f4f0;
-    --border: #e5e5e0; --accent: #1a1a1a; --accent2: #16a34a;
-    --text: #1a1a1a; --muted: #737373; --danger: #dc2626;
-    --radius: 6px; --font: 'Inter', system-ui, sans-serif;
-    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+/* ── Layout: sticky header · tab panels · task list ── */
+:root {
+  --bg:       #ffffff;
+  --surface:  #f8f9fa;
+  --surface2: #f0f2f4;
+  --border:   #e2e6ea;
+  --accent:   #1a1a1a;
+  --accent2:  #16a34a;
+  --text:     #1a1a1a;
+  --muted:    #6b7280;
+  --danger:   #dc2626;
+  --pending:  #d97706;
+  --radius:   8px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:       #0d0d0d;
+    --surface:  #1a1a1a;
+    --surface2: #242424;
+    --border:   #2e2e2e;
+    --accent:   #f5f5f5;
+    --accent2:  #22c55e;
+    --text:     #f0f0f0;
+    --muted:    #888;
+    --danger:   #f87171;
+    --pending:  #fbbf24;
+    color-scheme: dark;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #111111; --surface: #1c1c1c; --surface2: #252525;
-      --border: #2e2e2e; --accent: #f5f5f5; --text: #f5f5f5; --muted: #737373;
-    }
-  }
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-padding-top: env(safe-area-inset-top,0px); }
-  body {
-    font-family: var(--font); background: var(--bg); color: var(--text);
-    min-height: 100vh;
-    padding-top: env(safe-area-inset-top,0); padding-bottom: env(safe-area-inset-bottom,0);
-  }
-  header {
-    padding: 16px 28px; display: flex; align-items: center; gap: 14px;
-    border-bottom: 1px solid var(--border); position: sticky;
-    top: env(safe-area-inset-top,0); background: var(--bg); z-index: 10;
-  }
-  .logo { font-size: 17px; font-weight: 700; letter-spacing: -.4px; }
-  .logo em { font-style: normal; color: var(--accent2); }
-  .chain-badge {
-    margin-left: 8px; background: var(--surface2); border: 1px solid var(--border);
-    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-family: var(--mono); color: var(--muted);
-  }
-  nav { margin-left: auto; display: flex; gap: 4px; }
-  .tab-btn {
-    background: none; border: 1px solid transparent; padding: 7px 14px;
-    border-radius: var(--radius); cursor: pointer; font-size: 13px; color: var(--muted);
-    font-family: var(--font); transition: all .15s;
-  }
-  .tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-  .tab-btn:hover:not(.active) { color: var(--text); }
+}
+:root[data-theme="dark"] {
+  --bg:       #0d0d0d;
+  --surface:  #1a1a1a;
+  --surface2: #242424;
+  --border:   #2e2e2e;
+  --accent:   #f5f5f5;
+  --accent2:  #22c55e;
+  --text:     #f0f0f0;
+  --muted:    #888;
+  --danger:   #f87171;
+  --pending:  #fbbf24;
+  color-scheme: dark;
+}
 
-  main { max-width: 660px; margin: 0 auto; padding: 36px 24px; }
-  .section { display: none; }
-  .section.active { display: block; }
+*, *::before, *::after { box-sizing: border-box; }
 
-  .wallet-bar {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 10px 14px; display: flex; align-items: center; gap: 10px; margin-bottom: 24px;
-    font-size: 13px;
-  }
-  .wallet-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); }
-  .wallet-addr { font-family: var(--mono); color: var(--muted); font-size: 12px; }
-  .wallet-btn {
-    margin-left: auto; background: none; border: 1px solid var(--border);
-    padding: 5px 12px; border-radius: var(--radius); cursor: pointer; font-size: 12px;
-    color: var(--text); font-family: var(--font);
-  }
+html, body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100%;
+}
 
-  .add-form {
-    display: flex; gap: 8px; margin-bottom: 28px;
-  }
-  .add-input {
-    flex: 1; background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 11px 14px; color: var(--text);
-    font-family: var(--font); font-size: 14px; outline: none; transition: border-color .15s;
-  }
-  .add-input:focus { border-color: var(--accent); }
-  .add-btn {
-    background: var(--accent); color: var(--bg); border: none; padding: 11px 20px;
-    border-radius: var(--radius); cursor: pointer; font-weight: 600; font-size: 14px;
-    font-family: var(--font); white-space: nowrap;
-  }
-  .add-btn:hover { opacity: .85; }
+body {
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+}
 
-  .filter-row { display: flex; gap: 6px; margin-bottom: 16px; }
-  .filter-btn {
-    background: none; border: 1px solid var(--border); padding: 5px 12px;
-    border-radius: 20px; cursor: pointer; font-size: 12px; color: var(--muted);
-    font-family: var(--font); transition: all .15s;
-  }
-  .filter-btn.active { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+/* ── Header ── */
+.site-header {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 max(16px, env(safe-area-inset-left, 0px));
+  height: 52px;
+}
 
-  .todo-item {
-    display: flex; align-items: flex-start; gap: 12px; padding: 14px 0;
-    border-bottom: 1px solid var(--border); transition: opacity .2s;
-  }
-  .todo-item.done { opacity: .5; }
-  .check-circle {
-    width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
-    cursor: pointer; flex-shrink: 0; margin-top: 2px; display: flex;
-    align-items: center; justify-content: center; transition: all .15s;
-  }
-  .check-circle.checked { background: var(--accent2); border-color: var(--accent2); }
-  .check-circle.checked::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; }
-  .todo-text {
-    flex: 1; font-size: 14px; padding-top: 1px;
-    transition: text-decoration .15s;
-  }
-  .todo-item.done .todo-text { text-decoration: line-through; color: var(--muted); }
-  .todo-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
-  .todo-del {
-    background: none; border: none; color: var(--muted); cursor: pointer;
-    font-size: 16px; padding: 0 4px; margin-top: 1px; line-height: 1;
-  }
-  .todo-del:hover { color: var(--danger); }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 110;
+  background: var(--bg);
+}
 
-  .empty-state { text-align: center; padding: 48px 0; color: var(--muted); }
-  .empty-icon { font-size: 40px; margin-bottom: 12px; }
-  .empty-state p { font-size: 14px; }
+.logo {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.logo span { font-weight: 400; }
 
-  .stats-row { display: flex; gap: 16px; margin-bottom: 20px; font-size: 13px; color: var(--muted); }
-  .stats-row strong { color: var(--text); }
+.chain-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
 
-  .solidity-block {
-    background: #0f0f0f; border: 1px solid #2a2a2a; border-radius: var(--radius);
-    padding: 20px; overflow-x: auto; font-family: var(--mono); font-size: 12px;
-    line-height: 1.75; color: #d4d4d4;
-  }
-  .kw { color: #569cd6; } .type { color: #4ec9b0; } .fn { color: #dcdcaa; }
-  .str { color: #ce9178; } .cm { color: #6a9955; font-style: italic; }
-  .copy-btn {
-    float: right; background: #2a2a2a; border: none; color: #d4d4d4;
-    padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;
-    font-family: var(--mono);
-  }
-  .copy-btn:hover { background: var(--accent2); color: #000; }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
 
-  #toast {
-    position: fixed; bottom: 24px; right: 24px; background: var(--surface);
-    border: 1px solid var(--accent2); border-radius: var(--radius);
-    padding: 12px 16px; font-size: 13px; opacity: 0; pointer-events: none;
-    transition: opacity .2s; z-index: 100; color: var(--text);
-  }
-  #toast.show { opacity: 1; }
+.btn-connect {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.btn-connect:hover { opacity: 0.8; }
 
-  h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
-  .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-  .info-row:last-child { border-bottom: none; }
-  .info-key { color: var(--muted); }
-  .info-val { font-family: var(--mono); font-size: 12px; }
-  .info-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-top: 16px; }
+.wallet-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wallet-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent2);
+  flex-shrink: 0;
+}
+.wallet-addr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+.btn-disconnect {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-disconnect:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ── Nav tabs ── */
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--bg);
+  overflow-x: auto;
+}
+.nav-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Main content ── */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.panel-inner {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 20px max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ── Wallet bar ── */
+.wallet-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.wallet-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; }
+.wallet-bar .addr { font-family: 'JetBrains Mono', monospace; color: var(--text); }
+.wallet-bar .chain-label { margin-left: auto; color: var(--muted); font-size: 11px; }
+
+.not-connected {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+}
+.not-connected .nc-icon { font-size: 32px; margin-bottom: 12px; }
+.not-connected p { margin: 0 0 16px; font-size: 14px; }
+
+/* ── Add task form ── */
+.add-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.add-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.add-input:focus { border-color: var(--accent); }
+.add-input::placeholder { color: var(--muted); }
+
+.btn-add {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s;
+}
+.btn-add:hover:not(:disabled) { opacity: 0.8; }
+.btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Filters + stats ── */
+.filter-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.filter-row {
+  display: flex;
+  gap: 4px;
+}
+.filter-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.filter-btn:hover { color: var(--text); border-color: var(--accent); }
+.filter-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+.stats-row {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.stats-row span { color: var(--text); font-weight: 600; }
+
+/* ── Task list ── */
+.task-list { display: flex; flex-direction: column; gap: 4px; }
+
+.task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.15s;
+}
+.task-row:hover { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.task-row.done { opacity: 0.6; }
+
+.check-btn {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent2);
+  margin-top: 1px;
+  transition: border-color 0.15s, background 0.15s;
+  padding: 0;
+}
+.check-btn:hover { border-color: var(--accent2); }
+.check-btn.done-btn { background: var(--accent2); border-color: var(--accent2); }
+.check-btn svg { width: 10px; height: 10px; }
+
+.task-body { flex: 1; min-width: 0; }
+.task-text {
+  font-size: 13px;
+  word-break: break-word;
+  margin-bottom: 3px;
+}
+.task-text.done-text { text-decoration: line-through; color: var(--muted); }
+.task-meta {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.task-meta a { color: var(--muted); text-decoration: none; }
+.task-meta a:hover { color: var(--accent2); }
+
+.task-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-top: 0;
+}
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 4px;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  transition: color 0.15s, background 0.15s;
+  line-height: 1;
+}
+.icon-btn:hover { color: var(--text); background: var(--surface2); }
+.icon-btn.danger:hover { color: var(--danger); }
+.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Inline edit */
+.edit-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 3px 7px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.edit-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.edit-save {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--accent2);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.edit-cancel {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: inherit;
+}
+
+/* ── Skeleton ── */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.skel-row {
+  height: 52px;
+  background: linear-gradient(90deg,
+    var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  padding: 40px 24px;
+  color: var(--muted);
+}
+.empty-state p { margin: 0; font-size: 13px; }
+
+/* ── Contract tab ── */
+.info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.info-row:last-child { border-bottom: none; }
+.info-label { color: var(--muted); font-size: 12px; width: 110px; flex-shrink: 0; padding-top: 1px; }
+.info-value { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 12px; word-break: break-all; min-width: 0; }
+.info-value a { color: var(--accent2); text-decoration: none; }
+.info-value a:hover { text-decoration: underline; }
+
+.code-block-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.copy-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--accent); }
+pre.code-block {
+  margin: 0;
+  padding: 14px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--surface);
+  max-height: 420px;
+}
+
+/* syntax colors */
+.kw { color: #7c6af0; }
+.ty { color: #3b9af5; }
+.fn { color: #e8963d; }
+.cm { color: var(--muted); font-style: italic; }
+.st { color: var(--accent2); }
+.nm { color: #e06c75; }
+
+/* ── Toast system ── */
+.toast-container {
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom, 20px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+  width: min(400px, calc(100vw - 32px));
+}
+.toast {
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  pointer-events: auto;
+  width: 100%;
+  animation: toast-in 0.2s ease;
+  border-left: 3px solid transparent;
+}
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+.toast.pending { border-left-color: var(--pending); }
+.toast.success { border-left-color: var(--accent2); }
+.toast.error   { border-left-color: var(--danger); }
+.toast-icon { flex-shrink: 0; font-size: 14px; line-height: 1.5; }
+.toast-msg { flex: 1; min-width: 0; line-height: 1.4; }
+.toast-msg a { color: var(--accent2); text-decoration: none; font-weight: 600; }
+.toast-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 16px; padding: 0; line-height: 1; flex-shrink: 0;
+}
+
+/* spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+/* ── Utility ── */
+.section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel-row { animation: none; }
+  @keyframes toast-in { from { opacity: 1; } }
+}
 </style>
-</head>
-<body>
-<header>
-  <div class="logo">Chain<em>List</em></div>
-  <span class="chain-badge">Celo</span>
-  <nav>
-    <button class="tab-btn active" onclick="showTab('todos')">My Lists</button>
-    <button class="tab-btn" onclick="showTab('contract')">Contract</button>
-  </nav>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ── Header ── -->
+<header class="site-header">
+  <a class="logo" href="#">Chain<span>List</span></a>
+  <span class="chain-badge">Botchain</span>
+  <div class="header-right" id="headerRight">
+    <button class="btn-connect" id="connectBtn">Connect Wallet</button>
+  </div>
 </header>
 
-<main>
-  <!-- TODOS -->
-  <section class="section active" id="todos">
-    <div class="wallet-bar">
-      <div class="wallet-dot"></div>
-      <span style="font-size:13px;">Connected</span>
-      <span class="wallet-addr" id="wallet-display">0x1234...abcd</span>
-      <button class="wallet-btn" onclick="switchWallet()">Switch</button>
+<!-- ── Nav tabs ── -->
+<nav class="nav-tabs">
+  <button class="nav-tab active" data-tab="tasks">My Tasks</button>
+  <button class="nav-tab" data-tab="contract">Contract</button>
+</nav>
+
+<!-- ── My Tasks panel ── -->
+<div class="tab-panel active" id="panel-tasks">
+  <div class="panel-inner">
+    <!-- Not connected state -->
+    <div id="notConnectedState">
+      <div class="not-connected">
+        <div class="nc-icon">⬡</div>
+        <p>Connect your wallet to manage tasks on Botchain.</p>
+        <button class="btn-connect" onclick="connectWallet()">Connect Wallet</button>
+      </div>
     </div>
 
-    <div class="add-form">
-      <input class="add-input" id="new-task" placeholder="Add a new task..." onkeydown="if(event.key==='Enter')addTask()" />
-      <button class="add-btn" onclick="addTask()">Add task</button>
+    <!-- Connected state -->
+    <div id="connectedState" hidden>
+      <div class="wallet-bar" id="walletBar">
+        <span class="dot"></span>
+        <span class="addr" id="walletBarAddr">—</span>
+        <span class="chain-label">Botchain · Chain ID 968</span>
+      </div>
+
+      <div class="add-form">
+        <input type="text" class="add-input" id="taskInput" placeholder="What do you need to do?" maxlength="512">
+        <button class="btn-add" id="addBtn">
+          <span id="addBtnLabel">Add Task</span>
+        </button>
+      </div>
+
+      <div class="filter-stats">
+        <div class="filter-row">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="active">Active</button>
+          <button class="filter-btn" data-filter="done">Done</button>
+        </div>
+        <div class="stats-row" id="statsRow">
+          <span id="statTotal">0</span> total ·
+          <span id="statActive">0</span> active ·
+          <span id="statDone">0</span> done
+        </div>
+      </div>
+
+      <div id="taskListContainer">
+        <div class="skeleton" id="skeleton">
+          <div class="skel-row"></div>
+          <div class="skel-row"></div>
+          <div class="skel-row"></div>
+        </div>
+        <div class="task-list" id="taskList" hidden></div>
+        <div class="empty-state" id="emptyState" hidden>
+          <p>No tasks yet. Add one above to get started.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Contract panel ── -->
+<div class="tab-panel" id="panel-contract">
+  <div class="panel-inner">
+    <p class="section-title">Contract Info</p>
+    <div class="info-grid" style="margin-bottom:20px;">
+      <div class="info-row">
+        <span class="info-label">Network</span>
+        <span class="info-value">Botchain · Chain ID 968</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">RPC</span>
+        <span class="info-value"><a href="https://rpc.bohr.life" target="_blank" rel="noopener">https://rpc.bohr.life</a></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Explorer</span>
+        <span class="info-value"><a href="https://scan.bohr.life" target="_blank" rel="noopener">https://scan.bohr.life</a></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Contract</span>
+        <span class="info-value" id="contractAddrDisplay" style="font-size:11px;">0x0000000000000000000000000000000000000000</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Storage</span>
+        <span class="info-value">On-chain (Botchain)</span>
+      </div>
     </div>
 
-    <div class="filter-row">
-      <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
-      <button class="filter-btn" onclick="setFilter('active',this)">Active</button>
-      <button class="filter-btn" onclick="setFilter('done',this)">Done</button>
+    <p class="section-title">Source</p>
+    <div class="code-block-wrap">
+      <div class="code-header">
+        <span>Idlefy.sol</span>
+        <button class="copy-btn" id="copyCodeBtn">Copy</button>
+      </div>
+      <pre class="code-block" id="solidityCode"></pre>
     </div>
-
-    <div class="stats-row" id="stats-row"></div>
-    <div id="todo-list"></div>
-  </section>
-
-  <!-- CONTRACT -->
-  <section class="section" id="contract">
-    <h2>Smart Contract</h2>
-    <p class="subtitle">Each wallet has its own to-do list stored onchain. Tasks are scoped to <code style="font-family:var(--mono);font-size:12px;">msg.sender</code>.</p>
-    <div class="solidity-block">
-      <button class="copy-btn" onclick="copyContract()">Copy</button>
-<pre id="sol-code">// SPDX-License-Identifier: MIT
-<span class="kw">pragma</span> solidity ^0.8.20;
-
-<span class="cm">/// @title OnchainTodoList
-/// @notice Each address owns and manages their own list of tasks</span>
-<span class="kw">contract</span> <span class="type">OnchainTodoList</span> {
-
-    <span class="kw">struct</span> <span class="type">Task</span> {
-        <span class="type">uint256</span> id;
-        <span class="type">string</span>  text;
-        <span class="kw">bool</span>    completed;
-        <span class="type">uint256</span> createdAt;
-        <span class="type">uint256</span> completedAt;
-    }
-
-    <span class="cm">// owner => tasks</span>
-    <span class="kw">mapping</span>(<span class="type">address</span> => <span class="type">Task</span>[]) <span class="kw">private</span> _tasks;
-    <span class="kw">mapping</span>(<span class="type">address</span> => <span class="type">uint256</span>) <span class="kw">private</span> _nextId;
-
-    <span class="kw">event</span> <span class="fn">TaskAdded</span>(<span class="type">address</span> <span class="kw">indexed</span> owner, <span class="type">uint256</span> id, <span class="type">string</span> text);
-    <span class="kw">event</span> <span class="fn">TaskCompleted</span>(<span class="type">address</span> <span class="kw">indexed</span> owner, <span class="type">uint256</span> id);
-    <span class="kw">event</span> <span class="fn">TaskDeleted</span>(<span class="type">address</span> <span class="kw">indexed</span> owner, <span class="type">uint256</span> id);
-
-    <span class="kw">function</span> <span class="fn">addTask</span>(<span class="type">string</span> <span class="kw">calldata</span> text) <span class="kw">external</span> {
-        <span class="kw">require</span>(bytes(text).length > 0, <span class="str">"Empty task"</span>);
-        <span class="type">uint256</span> id = _nextId[msg.sender]++;
-        _tasks[msg.sender].push(<span class="type">Task</span>({
-            id: id,
-            text: text,
-            completed: <span class="kw">false</span>,
-            createdAt: block.timestamp,
-            completedAt: 0
-        }));
-        <span class="kw">emit</span> <span class="fn">TaskAdded</span>(msg.sender, id, text);
-    }
-
-    <span class="kw">function</span> <span class="fn">completeTask</span>(<span class="type">uint256</span> taskIndex) <span class="kw">external</span> {
-        <span class="type">Task</span> <span class="kw">storage</span> t = _tasks[msg.sender][taskIndex];
-        <span class="kw">require</span>(!t.completed, <span class="str">"Already done"</span>);
-        t.completed = <span class="kw">true</span>;
-        t.completedAt = block.timestamp;
-        <span class="kw">emit</span> <span class="fn">TaskCompleted</span>(msg.sender, t.id);
-    }
-
-    <span class="kw">function</span> <span class="fn">deleteTask</span>(<span class="type">uint256</span> taskIndex) <span class="kw">external</span> {
-        <span class="type">Task</span>[] <span class="kw">storage</span> list = _tasks[msg.sender];
-        <span class="kw">require</span>(taskIndex < list.length, <span class="str">"Out of range"</span>);
-        <span class="type">uint256</span> id = list[taskIndex].id;
-        list[taskIndex] = list[list.length - 1];
-        list.pop();
-        <span class="kw">emit</span> <span class="fn">TaskDeleted</span>(msg.sender, id);
-    }
-
-    <span class="kw">function</span> <span class="fn">getTasks</span>()
-        <span class="kw">external</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="type">Task</span>[] <span class="kw">memory</span>)
-    {
-        <span class="kw">return</span> _tasks[msg.sender];
-    }
-
-    <span class="kw">function</span> <span class="fn">getTaskCount</span>() <span class="kw">external</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="type">uint256</span>) {
-        <span class="kw">return</span> _tasks[msg.sender].length;
-    }
-
-    <span class="kw">function</span> <span class="fn">getPendingCount</span>() <span class="kw">external</span> <span class="kw">view</span> <span class="kw">returns</span> (<span class="type">uint256</span> count) {
-        <span class="type">Task</span>[] <span class="kw">memory</span> list = _tasks[msg.sender];
-        <span class="kw">for</span> (<span class="type">uint256</span> i; i < list.length; i++) {
-            <span class="kw">if</span> (!list[i].completed) count++;
-        }
-    }
-}</pre>
-    </div>
-    <div class="info-box">
-      <div class="info-row"><span class="info-key">Storage</span><span class="info-val">Per-wallet mapping — no shared state</span></div>
-      <div class="info-row"><span class="info-key">Network</span><span class="info-val">Any EVM / Celo</span></div>
-      <div class="info-row"><span class="info-key">Gas note</span><span class="info-val">addTask and completeTask are write txs</span></div>
-      <div class="info-row"><span class="info-key">Read</span><span class="info-val">getTasks() — free view call</span></div>
-    </div>
-  </section>
-</main>
-
-<div id="toast"></div>
+  </div>
+</div>
 
 <script>
-  let tasks = [], filter = 'all', walletAddr = '0x1234...abcd';
+// ── Constants ──────────────────────────────────────────────────────────────
+const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+const CHAIN_ID         = 968;
+const CHAIN_ID_HEX     = "0x" + CHAIN_ID.toString(16);
+const RPC_URL          = "https://rpc.bohr.life";
+const EXPLORER_URL     = "https://scan.bohr.life";
 
-  function showTab(id) {
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    event.currentTarget.classList.add('active');
+const CHAIN_PARAMS = {
+  chainId:           CHAIN_ID_HEX,
+  chainName:         "Botchain",
+  nativeCurrency:    { name: "BOT", symbol: "BOT", decimals: 18 },
+  rpcUrls:           [RPC_URL],
+  blockExplorerUrls: [EXPLORER_URL],
+};
+
+const ABI = [
+  // ── Structs encoded inline in tuples ──
+  // Write
+  {
+    "type": "function",
+    "name": "addTask",
+    "inputs": [{ "name": "text", "type": "string", "internalType": "string" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "completeTask",
+    "inputs": [{ "name": "taskIndex", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "reopenTask",
+    "inputs": [{ "name": "taskIndex", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "editTask",
+    "inputs": [
+      { "name": "taskIndex", "type": "uint256", "internalType": "uint256" },
+      { "name": "newText",   "type": "string",  "internalType": "string"  }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deleteTask",
+    "inputs": [{ "name": "taskIndex", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  // View
+  {
+    "type": "function",
+    "name": "getTasks",
+    "inputs": [],
+    "outputs": [{
+      "name": "",
+      "type": "tuple[]",
+      "internalType": "struct Idlefy.Task[]",
+      "components": [
+        { "name": "id",          "type": "uint256", "internalType": "uint256" },
+        { "name": "text",        "type": "string",  "internalType": "string"  },
+        { "name": "completed",   "type": "bool",    "internalType": "bool"    },
+        { "name": "createdAt",   "type": "uint256", "internalType": "uint256" },
+        { "name": "completedAt", "type": "uint256", "internalType": "uint256" }
+      ]
+    }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTasksOf",
+    "inputs": [{ "name": "owner", "type": "address", "internalType": "address" }],
+    "outputs": [{
+      "name": "",
+      "type": "tuple[]",
+      "internalType": "struct Idlefy.Task[]",
+      "components": [
+        { "name": "id",          "type": "uint256", "internalType": "uint256" },
+        { "name": "text",        "type": "string",  "internalType": "string"  },
+        { "name": "completed",   "type": "bool",    "internalType": "bool"    },
+        { "name": "createdAt",   "type": "uint256", "internalType": "uint256" },
+        { "name": "completedAt", "type": "uint256", "internalType": "uint256" }
+      ]
+    }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTaskCount",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPendingCount",
+    "inputs": [],
+    "outputs": [{ "name": "count", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTask",
+    "inputs": [{ "name": "taskIndex", "type": "uint256", "internalType": "uint256" }],
+    "outputs": [{
+      "name": "",
+      "type": "tuple",
+      "internalType": "struct Idlefy.Task",
+      "components": [
+        { "name": "id",          "type": "uint256", "internalType": "uint256" },
+        { "name": "text",        "type": "string",  "internalType": "string"  },
+        { "name": "completed",   "type": "bool",    "internalType": "bool"    },
+        { "name": "createdAt",   "type": "uint256", "internalType": "uint256" },
+        { "name": "completedAt", "type": "uint256", "internalType": "uint256" }
+      ]
+    }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTasksPaginated",
+    "inputs": [
+      { "name": "offset", "type": "uint256", "internalType": "uint256" },
+      { "name": "limit",  "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{
+      "name": "page",
+      "type": "tuple[]",
+      "internalType": "struct Idlefy.Task[]",
+      "components": [
+        { "name": "id",          "type": "uint256", "internalType": "uint256" },
+        { "name": "text",        "type": "string",  "internalType": "string"  },
+        { "name": "completed",   "type": "bool",    "internalType": "bool"    },
+        { "name": "createdAt",   "type": "uint256", "internalType": "uint256" },
+        { "name": "completedAt", "type": "uint256", "internalType": "uint256" }
+      ]
+    }],
+    "stateMutability": "view"
+  },
+  // Public mappings (auto-getter)
+  {
+    "type": "function",
+    "name": "totalCreated",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalCompleted",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
   }
+];
 
-  function toast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg; t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2500);
-  }
+// ── State ──────────────────────────────────────────────────────────────────
+let provider = null;
+let signer   = null;
+let contract = null;
+let account  = null;
+let tasks    = [];
+let pendingTx = false;
+let activeFilter = "all";
+// localStorage key for task tx links: { address: { taskIndex: txHash } }
+const LS_TX_KEY = "idlefy_task_txs";
 
-  function setFilter(f, btn) {
-    filter = f;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    render();
-  }
+function getStoredTxs() {
+  try { return JSON.parse(localStorage.getItem(LS_TX_KEY) || "{}"); }
+  catch { return {}; }
+}
+function setTaskTx(addr, index, hash) {
+  const all = getStoredTxs();
+  if (!all[addr]) all[addr] = {};
+  all[addr][String(index)] = hash;
+  try { localStorage.setItem(LS_TX_KEY, JSON.stringify(all)); } catch {}
+}
+function getTaskTx(addr, index) {
+  const all = getStoredTxs();
+  return all[addr]?.[String(index)] ?? null;
+}
 
-  function switchWallet() {
-    const fake = '0x' + Math.random().toString(16).slice(2,8) + '...' + Math.random().toString(16).slice(2,6);
-    walletAddr = fake;
-    document.getElementById('wallet-display').textContent = fake;
-    tasks = [];
-    render();
-    toast('Switched wallet');
-  }
+// ── Toast ──────────────────────────────────────────────────────────────────
+let toastCounter = 0;
+function showToast(type, html, duration = 0) {
+  const tc   = document.getElementById("toastContainer");
+  const id   = "toast-" + (++toastCounter);
+  const icon = type === "pending" ? '<span class="spin">◌</span>'
+             : type === "success" ? "✓"
+             : "✕";
+  const div  = document.createElement("div");
+  div.className = "toast " + type;
+  div.id        = id;
+  div.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <span class="toast-msg">${html}</span>
+    <button class="toast-close" onclick="removeToast('${id}')">×</button>
+  `;
+  tc.appendChild(div);
+  if (duration > 0) setTimeout(() => removeToast(id), duration);
+  return id;
+}
+function removeToast(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+function updateToast(id, type, html) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = "toast " + type;
+  const icon = type === "pending" ? '<span class="spin">◌</span>'
+             : type === "success" ? "✓"
+             : "✕";
+  el.querySelector(".toast-icon").innerHTML = icon;
+  el.querySelector(".toast-msg").innerHTML  = html;
+  if (type !== "pending") setTimeout(() => removeToast(id), 5000);
+}
 
-  function addTask() {
-    const inp = document.getElementById('new-task');
-    const text = inp.value.trim();
-    if (!text) return;
-    tasks.push({ id: Date.now(), text, done: false, ts: Date.now() });
-    inp.value = '';
-    render();
-    toast('Task added onchain');
-  }
-
-  function toggleTask(id) {
-    const t = tasks.find(t => t.id === id);
-    if (t) { t.done = !t.done; render(); toast(t.done ? 'Task completed' : 'Task reopened'); }
-  }
-
-  function deleteTask(id) {
-    tasks = tasks.filter(t => t.id !== id);
-    render();
-    toast('Task deleted');
-  }
-
-  function render() {
-    const filtered = tasks.filter(t => {
-      if (filter === 'active') return !t.done;
-      if (filter === 'done') return t.done;
-      return true;
+// ── Chain switching ────────────────────────────────────────────────────────
+async function ensureChain() {
+  const chainHex = await window.ethereum.request({ method: "eth_chainId" });
+  if (parseInt(chainHex, 16) === CHAIN_ID) return true;
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: CHAIN_ID_HEX }],
     });
-    const done = tasks.filter(t => t.done).length;
-    document.getElementById('stats-row').innerHTML =
-      `<span><strong>${tasks.length}</strong> total</span>
-       <span><strong>${tasks.length - done}</strong> active</span>
-       <span><strong>${done}</strong> done</span>`;
-
-    const list = document.getElementById('todo-list');
-    if (!filtered.length) {
-      const msgs = { all: 'Nothing here yet — add your first task above.',
-        active: 'All tasks are done!', done: 'No completed tasks yet.' };
-      list.innerHTML = `<div class="empty-state"><div class="empty-icon">✓</div><p>${msgs[filter]}</p></div>`;
-      return;
+    return true;
+  } catch (e) {
+    if (e.code === 4902 || e.code === -32603) {
+      try {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [CHAIN_PARAMS],
+        });
+        return true;
+      } catch (e2) {
+        showToast("error", "Could not add Botchain to MetaMask.", 5000);
+        return false;
+      }
     }
-    list.innerHTML = filtered.map(t => `
-      <div class="todo-item ${t.done ? 'done' : ''}">
-        <div class="check-circle ${t.done ? 'checked' : ''}" onclick="toggleTask(${t.id})"></div>
-        <div style="flex:1">
-          <div class="todo-text">${t.text}</div>
-          <div class="todo-meta">${new Date(t.ts).toLocaleString()}</div>
+    if (e.code === 4001) {
+      showToast("error", "Please switch to Botchain to continue.", 5000);
+    }
+    return false;
+  }
+}
+
+// ── Wallet connect ─────────────────────────────────────────────────────────
+async function connectWallet() {
+  if (!window.ethereum) {
+    showToast("error", "MetaMask not detected. <a href='https://metamask.io' target='_blank'>Install MetaMask</a>", 6000);
+    return;
+  }
+  try {
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    if (!accounts.length) return;
+    const ok = await ensureChain();
+    if (!ok) return;
+    await setupWallet(accounts[0]);
+  } catch (e) {
+    if (e.code === 4001) showToast("error", "Connection cancelled.", 4000);
+    else showToast("error", "Connection failed: " + (e.message || e), 5000);
+  }
+}
+
+async function setupWallet(addr) {
+  provider = new ethers.BrowserProvider(window.ethereum);
+  signer   = await provider.getSigner();
+  account  = addr.toLowerCase();
+  contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+  updateHeaderWallet(addr);
+  showConnectedUI(addr);
+  await loadTasks();
+}
+
+function disconnectWallet() {
+  provider = signer = contract = null;
+  account  = null;
+  tasks    = [];
+  updateHeaderDisconnected();
+  showDisconnectedUI();
+}
+
+function updateHeaderWallet(addr) {
+  const r = document.getElementById("headerRight");
+  r.innerHTML = `
+    <div class="wallet-display">
+      <span class="wallet-dot"></span>
+      <span class="wallet-addr">${truncAddr(addr)}</span>
+    </div>
+    <button class="btn-disconnect" onclick="disconnectWallet()">Disconnect</button>
+  `;
+}
+function updateHeaderDisconnected() {
+  const r = document.getElementById("headerRight");
+  r.innerHTML = `<button class="btn-connect" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>`;
+}
+
+function showConnectedUI(addr) {
+  document.getElementById("notConnectedState").hidden = true;
+  document.getElementById("connectedState").hidden    = false;
+  document.getElementById("walletBarAddr").textContent = truncAddr(addr);
+}
+function showDisconnectedUI() {
+  document.getElementById("notConnectedState").hidden = false;
+  document.getElementById("connectedState").hidden    = true;
+}
+
+function truncAddr(addr) {
+  return addr.slice(0, 6) + "..." + addr.slice(-4);
+}
+
+// ── Wallet event listeners ─────────────────────────────────────────────────
+if (window.ethereum) {
+  window.ethereum.on("accountsChanged", async (accounts) => {
+    if (!accounts.length) { disconnectWallet(); return; }
+    await setupWallet(accounts[0]);
+  });
+  window.ethereum.on("chainChanged", async () => {
+    if (!account) return;
+    const ok = await ensureChain();
+    if (ok) await setupWallet(await provider.getSigner().then(s => s.getAddress()));
+    else disconnectWallet();
+  });
+}
+
+// ── Load tasks ─────────────────────────────────────────────────────────────
+async function loadTasks() {
+  if (!contract || !account) return;
+  showSkeleton(true);
+  try {
+    const raw = await contract.getTasks();
+    tasks = raw.map((t, i) => ({
+      index:       i,
+      id:          Number(t.id),
+      text:        t.text,
+      completed:   t.completed,
+      createdAt:   Number(t.createdAt),
+      completedAt: Number(t.completedAt),
+    }));
+    updateStats();
+    renderTasks();
+  } catch (e) {
+    showToast("error", "Failed to load tasks: " + shortErr(e), 5000);
+  } finally {
+    showSkeleton(false);
+  }
+}
+
+function showSkeleton(show) {
+  document.getElementById("skeleton").hidden   = !show;
+  document.getElementById("taskList").hidden   = show;
+  document.getElementById("emptyState").hidden = true;
+}
+
+function updateStats() {
+  const total  = tasks.length;
+  const done   = tasks.filter(t => t.completed).length;
+  const active = total - done;
+  document.getElementById("statTotal").textContent  = total;
+  document.getElementById("statActive").textContent = active;
+  document.getElementById("statDone").textContent   = done;
+}
+
+function renderTasks() {
+  const list = document.getElementById("taskList");
+  const empty = document.getElementById("emptyState");
+  const filtered = tasks.filter(t => {
+    if (activeFilter === "active") return !t.completed;
+    if (activeFilter === "done")   return  t.completed;
+    return true;
+  });
+
+  list.hidden  = false;
+  empty.hidden = filtered.length > 0;
+  list.hidden  = filtered.length === 0;
+
+  list.innerHTML = filtered.map(t => taskRowHTML(t)).join("");
+
+  // bind events
+  filtered.forEach(t => {
+    const row   = document.getElementById("task-row-" + t.index);
+    if (!row) return;
+    row.querySelector(".check-btn").addEventListener("click",  () => handleToggle(t));
+    row.querySelector(".edit-btn" ).addEventListener("click",  () => startEdit(t));
+    row.querySelector(".del-btn"  ).addEventListener("click",  () => handleDelete(t));
+  });
+}
+
+function taskRowHTML(t) {
+  const txHash = account ? getTaskTx(account, t.index) : null;
+  const txLink = txHash
+    ? `<a href="${EXPLORER_URL}/tx/${txHash}" target="_blank" rel="noopener">↗ tx</a>`
+    : "";
+  const created = t.createdAt ? fmtTime(t.createdAt) : "";
+  const checkClass = t.completed ? "check-btn done-btn" : "check-btn";
+  const checkIcon  = t.completed
+    ? `<svg viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="2"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>`
+    : "";
+  return `
+    <div class="task-row${t.completed ? " done" : ""}" id="task-row-${t.index}">
+      <button class="${checkClass}" title="${t.completed ? "Reopen" : "Complete"}">${checkIcon}</button>
+      <div class="task-body">
+        <div class="task-text${t.completed ? " done-text" : ""}" id="task-text-${t.index}">${escHtml(t.text)}</div>
+        <div class="task-meta">
+          ${created ? `<span>${created}</span>` : ""}
+          ${txLink}
         </div>
-        <button class="todo-del" onclick="deleteTask(${t.id})">×</button>
       </div>
-    `).join('');
-  }
+      <div class="task-actions">
+        <button class="icon-btn edit-btn" title="Edit" id="edit-btn-${t.index}">✎</button>
+        <button class="icon-btn danger del-btn" title="Delete" id="del-btn-${t.index}">×</button>
+      </div>
+    </div>
+  `;
+}
 
-  function copyContract() {
-    navigator.clipboard.writeText(document.getElementById('sol-code').innerText)
-      .then(() => toast('Contract copied!'));
-  }
+// ── Write actions ──────────────────────────────────────────────────────────
+function setPending(state) {
+  pendingTx = state;
+  const addBtn = document.getElementById("addBtn");
+  const label  = document.getElementById("addBtnLabel");
+  if (!addBtn) return;
+  addBtn.disabled = state;
+  label.innerHTML = state ? '<span class="spin">◌</span>' : "Add Task";
+  document.querySelectorAll(".check-btn, .edit-btn, .del-btn, .edit-save").forEach(b => {
+    b.disabled = state;
+  });
+}
 
-  render();
+async function handleAddTask() {
+  if (pendingTx) return;
+  const input = document.getElementById("taskInput");
+  const text  = input.value.trim();
+  if (!text) { input.focus(); return; }
+  setPending(true);
+  const tid = showToast("pending", "Waiting for confirmation…");
+  try {
+    const tx = await contract.addTask(text);
+    const receipt = await tx.wait();
+    input.value = "";
+    updateToast(tid, "success", `Task added! <a href="${EXPLORER_URL}/tx/${tx.hash}" target="_blank" rel="noopener">View on explorer ↗</a>`);
+    await loadTasks();
+  } catch (e) {
+    updateToast(tid, "error", txErrMsg(e));
+  } finally {
+    setPending(false);
+  }
+}
+
+async function handleToggle(t) {
+  if (pendingTx) return;
+  const action = t.completed ? "reopenTask" : "completeTask";
+  const label  = t.completed ? "Task reopened" : "Task completed";
+  setPending(true);
+  const tid = showToast("pending", "Waiting for confirmation…");
+  try {
+    const tx = await contract[action](t.index);
+    setTaskTx(account, t.index, tx.hash);
+    await tx.wait();
+    updateToast(tid, "success", `${label}! <a href="${EXPLORER_URL}/tx/${tx.hash}" target="_blank" rel="noopener">View ↗</a>`);
+    await loadTasks();
+  } catch (e) {
+    updateToast(tid, "error", txErrMsg(e));
+  } finally {
+    setPending(false);
+  }
+}
+
+async function handleDelete(t) {
+  if (pendingTx) return;
+  setPending(true);
+  const tid = showToast("pending", "Waiting for confirmation…");
+  try {
+    const tx = await contract.deleteTask(t.index);
+    await tx.wait();
+    updateToast(tid, "success", `Task deleted. <a href="${EXPLORER_URL}/tx/${tx.hash}" target="_blank" rel="noopener">View ↗</a>`);
+    await loadTasks();
+  } catch (e) {
+    updateToast(tid, "error", txErrMsg(e));
+  } finally {
+    setPending(false);
+  }
+}
+
+function startEdit(t) {
+  if (pendingTx) return;
+  const textEl = document.getElementById("task-text-" + t.index);
+  const editBtn = document.getElementById("edit-btn-" + t.index);
+  if (!textEl || textEl.dataset.editing) return;
+  textEl.dataset.editing = "1";
+  const original = t.text;
+  textEl.innerHTML = `
+    <input class="edit-input" id="edit-input-${t.index}" value="${escAttr(original)}">
+    <div class="edit-actions">
+      <button class="edit-save" id="save-btn-${t.index}">Save</button>
+      <button class="edit-cancel" id="cancel-btn-${t.index}">Cancel</button>
+    </div>
+  `;
+  const inp = document.getElementById("edit-input-" + t.index);
+  inp.focus();
+  inp.select();
+  document.getElementById("save-btn-" + t.index).addEventListener("click", () => commitEdit(t, inp.value.trim()));
+  document.getElementById("cancel-btn-" + t.index).addEventListener("click", () => { delete textEl.dataset.editing; renderTasks(); });
+  inp.addEventListener("keydown", e => {
+    if (e.key === "Enter")  { e.preventDefault(); commitEdit(t, inp.value.trim()); }
+    if (e.key === "Escape") { delete textEl.dataset.editing; renderTasks(); }
+  });
+}
+
+async function commitEdit(t, newText) {
+  if (!newText || newText === t.text) { renderTasks(); return; }
+  if (pendingTx) return;
+  setPending(true);
+  const tid = showToast("pending", "Waiting for confirmation…");
+  try {
+    const tx = await contract.editTask(t.index, newText);
+    setTaskTx(account, t.index, tx.hash);
+    await tx.wait();
+    updateToast(tid, "success", `Task updated! <a href="${EXPLORER_URL}/tx/${tx.hash}" target="_blank" rel="noopener">View ↗</a>`);
+    await loadTasks();
+  } catch (e) {
+    updateToast(tid, "error", txErrMsg(e));
+    renderTasks();
+  } finally {
+    setPending(false);
+  }
+}
+
+// ── Filters ────────────────────────────────────────────────────────────────
+document.querySelectorAll(".filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeFilter = btn.dataset.filter;
+    renderTasks();
+  });
+});
+
+// ── Add task on Enter ──────────────────────────────────────────────────────
+document.getElementById("taskInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") handleAddTask();
+});
+document.getElementById("addBtn").addEventListener("click", handleAddTask);
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+document.querySelectorAll(".nav-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+  });
+});
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+function escAttr(s) {
+  return String(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function fmtTime(unix) {
+  if (!unix) return "";
+  const d = new Date(unix * 1000);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+function shortErr(e) {
+  return (e.reason || e.shortMessage || e.message || String(e)).slice(0, 120);
+}
+function txErrMsg(e) {
+  if (e.code === 4001 || e.code === "ACTION_REJECTED") return "Transaction cancelled.";
+  const reason = e.reason || e.data?.message;
+  if (reason) return "Reverted: " + reason;
+  return shortErr(e);
+}
+
+// ── Contract tab: copy button ──────────────────────────────────────────────
+document.getElementById("copyCodeBtn").addEventListener("click", async () => {
+  const code = document.getElementById("solidityCode").textContent;
+  try {
+    await navigator.clipboard.writeText(code);
+    const btn = document.getElementById("copyCodeBtn");
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+  } catch {
+    const range = document.createRange();
+    range.selectNode(document.getElementById("solidityCode"));
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+  }
+});
+
+// ── Solidity source (syntax highlighted) ──────────────────────────────────
+const SOLIDITY_SOURCE = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+contract Idlefy {
+
+    struct Task {
+        uint256 id;
+        string  text;
+        bool    completed;
+        uint256 createdAt;
+        uint256 completedAt;
+    }
+
+    mapping(address => Task[])   private _tasks;
+    mapping(address => uint256)  public  totalCreated;
+    mapping(address => uint256)  public  totalCompleted;
+
+    // ── Write ────────────────────────────────────────────────
+    function addTask(string calldata text) external {
+        uint256 idx = _tasks[msg.sender].length;
+        _tasks[msg.sender].push(Task({
+            id:          idx,
+            text:        text,
+            completed:   false,
+            createdAt:   block.timestamp,
+            completedAt: 0
+        }));
+        totalCreated[msg.sender]++;
+    }
+
+    function completeTask(uint256 taskIndex) external {
+        Task storage t = _tasks[msg.sender][taskIndex];
+        require(!t.completed, "Already completed");
+        t.completed   = true;
+        t.completedAt = block.timestamp;
+        totalCompleted[msg.sender]++;
+    }
+
+    function reopenTask(uint256 taskIndex) external {
+        Task storage t = _tasks[msg.sender][taskIndex];
+        require(t.completed, "Not completed");
+        t.completed   = false;
+        t.completedAt = 0;
+        totalCompleted[msg.sender]--;
+    }
+
+    function editTask(
+        uint256 taskIndex,
+        string calldata newText
+    ) external {
+        _tasks[msg.sender][taskIndex].text = newText;
+    }
+
+    function deleteTask(uint256 taskIndex) external {
+        Task[] storage arr = _tasks[msg.sender];
+        uint256 last = arr.length - 1;
+        if (taskIndex != last) arr[taskIndex] = arr[last];
+        arr.pop();
+    }
+
+    // ── View ─────────────────────────────────────────────────
+    function getTasks()
+        external view returns (Task[] memory)
+    {
+        return _tasks[msg.sender];
+    }
+
+    function getTasksOf(address owner)
+        external view returns (Task[] memory)
+    {
+        return _tasks[owner];
+    }
+
+    function getTaskCount()
+        external view returns (uint256)
+    {
+        return _tasks[msg.sender].length;
+    }
+
+    function getPendingCount()
+        external view returns (uint256 count)
+    {
+        Task[] storage arr = _tasks[msg.sender];
+        for (uint256 i; i < arr.length; i++) {
+            if (!arr[i].completed) count++;
+        }
+    }
+
+    function getTask(uint256 taskIndex)
+        external view returns (Task memory)
+    {
+        return _tasks[msg.sender][taskIndex];
+    }
+
+    function getTasksPaginated(
+        uint256 offset,
+        uint256 limit
+    ) external view returns (Task[] memory page) {
+        Task[] storage arr = _tasks[msg.sender];
+        uint256 end = offset + limit > arr.length
+            ? arr.length : offset + limit;
+        page = new Task[](end - offset);
+        for (uint256 i = offset; i < end; i++) {
+            page[i - offset] = arr[i];
+        }
+    }
+}`;
+
+// Minimal syntax highlighting
+function highlight(src) {
+  const keywords = ["pragma","contract","struct","mapping","function",
+    "external","view","returns","require","uint256","bool","string",
+    "address","calldata","storage","memory","public","private","for",
+    "if","return","true","false","new","push","pop"];
+  let out = escHtml(src);
+  // comments
+  out = out.replace(/(\/\/[^\n]*)/g, '<span class="cm">$1</span>');
+  // strings
+  out = out.replace(/(&quot;[^&]*&quot;)/g, '<span class="st">$1</span>');
+  // numbers
+  out = out.replace(/\b(\d+)\b/g, '<span class="nm">$1</span>');
+  // keywords
+  keywords.forEach(kw => {
+    out = out.replace(new RegExp(`\\b(${kw})\\b`, "g"), '<span class="kw">$1</span>');
+  });
+  // function names
+  out = out.replace(/<span class="kw">function<\/span>\s+(\w+)/g,
+    '<span class="kw">function</span> <span class="fn">$1</span>');
+  // contract / struct names
+  out = out.replace(/<span class="kw">(contract|struct)<\/span>\s+(\w+)/g,
+    '<span class="kw">$1</span> <span class="ty">$2</span>');
+  return out;
+}
+
+document.getElementById("solidityCode").innerHTML = highlight(SOLIDITY_SOURCE);
+
+// Also update contract address display
+document.getElementById("contractAddrDisplay").textContent = CONTRACT_ADDRESS;
 </script>
-</body>
-</html>
+
+</body></html>
